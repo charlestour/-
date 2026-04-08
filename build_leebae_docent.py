@@ -1,6 +1,6 @@
 """
 이배 《En attendant: 기다리며》 도슨트 PPT 빌드 스크립트
-이미지 없이 색상 배경으로 완성하는 버전
+images/ 폴더의 이미지를 사용합니다.
 출력: leebae_docent_final.pptx
 """
 
@@ -29,6 +29,16 @@ C_GRAY_D = RGBColor(0x4A, 0x4A, 0x4A)
 C_CARD   = RGBColor(0x22, 0x22, 0x22)
 C_CARD_B = RGBColor(0x3A, 0x3A, 0x3A)
 
+def load_images():
+    imgs = {}
+    img_dir = Path("images")
+    for key in ["img_1","img_2","img_3","img_4","img_5","img_6","img_7"]:
+        p = img_dir / f"{key}.jpg"
+        imgs[key] = p if p.exists() else None
+        status = "OK" if p.exists() else "없음"
+        print(f"  {key}: {status}")
+    return imgs
+
 def _hex(c): return f"{c[0]:02X}{c[1]:02X}{c[2]:02X}"
 
 def set_bg_color(slide, color):
@@ -44,6 +54,26 @@ def set_bg_color(slide, color):
     clr = etree.SubElement(etree.SubElement(bgPr, qn("a:solidFill")), qn("a:srgbClr"))
     clr.set("val", _hex(color))
 
+def set_bg_image(slide, img_path):
+    if img_path is None:
+        return set_bg_color(slide, C_BG)
+    _, rId = slide.part.get_or_add_image_part(str(img_path))
+    cSld = slide._element.find(qn("p:cSld"))
+    bg = cSld.find(qn("p:bg"))
+    if bg is None:
+        bg = etree.SubElement(cSld, qn("p:bg")); cSld.insert(0, bg)
+    bgPr = bg.find(qn("p:bgPr"))
+    if bgPr is None: bgPr = etree.SubElement(bg, qn("p:bgPr"))
+    for c in list(bgPr): bgPr.remove(c)
+    bf = etree.SubElement(bgPr, qn("a:blipFill"))
+    bf.set("dpi","0"); bf.set("rotWithShape","1")
+    blip = etree.SubElement(bf, qn("a:blip"))
+    blip.set("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed", rId)
+    etree.SubElement(etree.SubElement(bf, qn("a:stretch")), qn("a:fillRect"))
+
+def add_img(slide, p, x, y, w, h):
+    if p: slide.shapes.add_picture(str(p), Emu(x), Emu(y), Emu(w), Emu(h))
+
 def add_rect(slide, x, y, w, h, fill=None, fa=None, line=None, lw=12700):
     s = slide.shapes.add_shape(1, Emu(x), Emu(y), Emu(w), Emu(h))
     sp = s.element.find(qn("p:spPr"))
@@ -53,8 +83,7 @@ def add_rect(slide, x, y, w, h, fill=None, fa=None, line=None, lw=12700):
         clr = etree.SubElement(etree.SubElement(sp, qn("a:solidFill")), qn("a:srgbClr"))
         clr.set("val", _hex(fill))
         if fa: etree.SubElement(clr, qn("a:alpha")).set("val", str(fa))
-    else:
-        etree.SubElement(sp, qn("a:noFill"))
+    else: etree.SubElement(sp, qn("a:noFill"))
     ln = sp.find(qn("a:ln"))
     if ln is None: ln = etree.SubElement(sp, qn("a:ln"))
     for e in list(ln): ln.remove(e)
@@ -62,8 +91,7 @@ def add_rect(slide, x, y, w, h, fill=None, fa=None, line=None, lw=12700):
         ln.set("w", str(lw))
         clr2 = etree.SubElement(etree.SubElement(ln, qn("a:solidFill")), qn("a:srgbClr"))
         clr2.set("val", _hex(line))
-    else:
-        etree.SubElement(ln, qn("a:noFill"))
+    else: etree.SubElement(ln, qn("a:noFill"))
 
 def _bpr(tf, anc="t"):
     b = tf._txBody.find(qn("a:bodyPr"))
@@ -99,13 +127,6 @@ def add_lines(slide, x, y, w, h, lines, sz, color,
         f = r.font; f.size=Pt(sz); f.bold=lb; f.italic=italic
         f.name=font; f.color.rgb=lc
 
-def add_img_placeholder(slide, x, y, w, h, label=""):
-    """이미지 대신 다크 플레이스홀더"""
-    add_rect(slide, x, y, w, h, fill=RGBColor(0x1E, 0x1E, 0x1E), line=RGBColor(0x33, 0x33, 0x33))
-    if label:
-        add_text(slide, x, y+h//2-100000, w, 200000, label,
-                 10, RGBColor(0x55, 0x55, 0x55), align=PP_ALIGN.CENTER, anchor="ctr")
-
 def add_card(slide, x, y, w, h, icon, title, sub, body):
     P = 182880
     add_rect(slide, x, y, w, h, fill=C_CARD, line=C_CARD_B)
@@ -118,10 +139,13 @@ def add_card(slide, x, y, w, h, icon, title, sub, body):
         cy += 285000
     add_text(slide, x+P, cy, w-P*2, h-(cy-y)-P, body, 11, C_GRAY_L)
 
+# ──────────────────────────────────────────────
 # 슬라이드 1 — 표지
-def s1(slide):
+# ──────────────────────────────────────────────
+def s1(slide, imgs):
     set_bg_color(slide, C_BG)
-    add_img_placeholder(slide, 4500000, 0, 4644000, 5143500, "[ 이배 작품 이미지 ]")
+    add_img(slide, imgs["img_1"], 4500000, 0, 4644000, 5143500)
+    add_rect(slide, 4500000, 0, 4644000, 5143500, fill=RGBColor(0x11,0x11,0x11), fa=60000)
     add_rect(slide, 411480, 731520, 54864, 3657600, fill=C_GOLD)
     add_text(slide, 640080, 731520, 8000000, 1005840, "이배 李培",
              52, C_WHITE, bold=True, font="Georgia", anchor="ctr")
@@ -141,11 +165,13 @@ def s1(slide):
         (6492240,1371600,2651760,21000),(6172200,1645920,2286000,25000)]:
         add_rect(slide, bx, by, 1097280, bh, fill=C_GRAY_D, fa=ba, line=C_GRAY_D, lw=12700)
 
+# ──────────────────────────────────────────────
 # 슬라이드 2 — 작가 소개
-def s2(slide):
+# ──────────────────────────────────────────────
+def s2(slide, imgs):
     set_bg_color(slide, C_BG)
-    add_img_placeholder(slide, 6100000, 300000, 3044000, 4600000, "[ 작가 사진 ]")
-    add_rect(slide, 0, 0, 9144000, 502920, fill=RGBColor(0x1A, 0x1A, 0x1A))
+    add_img(slide, imgs["img_7"], 6100000, 300000, 3044000, 4600000)
+    add_rect(slide, 0, 0, 9144000, 502920, fill=RGBColor(0x1A,0x1A,0x1A))
     add_text(slide, 457200, 0, 8229600, 502920, "A R T I S T",
              11, C_GRAY_M, spc=600, anchor="ctr")
     add_text(slide, 457200, 685800, 5500000, 822960,
@@ -171,10 +197,12 @@ def s2(slide):
                "베니스 빌모트 파운데이션 개인전 등 굵직한 커리어를 이어오고 있습니다."],
               12, C_GRAY_L)
 
+# ──────────────────────────────────────────────
 # 슬라이드 3 — 숯의 언어
-def s3(slide):
-    set_bg_color(slide, RGBColor(0x0D, 0x0D, 0x0D))
-    add_rect(slide, 0, 0, 9144000, 502920, fill=RGBColor(0x0D,0x0D,0x0D))
+# ──────────────────────────────────────────────
+def s3(slide, imgs):
+    set_bg_image(slide, imgs["img_2"])
+    add_rect(slide, 0, 0, 9144000, 502920, fill=RGBColor(0x0D,0x0D,0x0D), fa=90000)
     add_text(slide, 457200, 0, 8229600, 502920, "M E D I U M",
              11, C_GRAY_M, spc=600, anchor="ctr")
     add_text(slide, 457200, 685800, 8229600, 822960,
@@ -193,12 +221,15 @@ def s3(slide):
              '"숯은 나에게 자신의 원천을 일깨워주는 재질이었다." — 이배',
              11, C_GRAY_D, italic=True, align=PP_ALIGN.CENTER, anchor="ctr")
 
+# ──────────────────────────────────────────────
 # 슬라이드 4 — 전시 공간
-def s4(slide):
-    set_bg_color(slide, RGBColor(0x0A, 0x0A, 0x0A))
-    add_rect(slide, 0, 0, 9144000, 502920, fill=RGBColor(0x0D,0x0D,0x0D))
+# ──────────────────────────────────────────────
+def s4(slide, imgs):
+    set_bg_image(slide, imgs["img_5"])
+    add_rect(slide, 0, 0, 9144000, 502920, fill=RGBColor(0x0D,0x0D,0x0D), fa=92000)
     add_text(slide, 457200, 0, 8229600, 502920,
              "E X H I B I T I O N   S P A C E S", 11, C_GRAY_M, spc=600, anchor="ctr")
+    add_rect(slide, 0, 502920, 9144000, 4640580, fill=RGBColor(0x0A,0x0A,0x0A), fa=75000)
     add_text(slide, 457200, 685800, 8229600, 914400,
              "전시 공간 — 6개의 사유의 장", 40, C_WHITE, bold=True)
     cw, ch, gx, gy = 2743200, 1280160, 228600, 182880
@@ -222,13 +253,14 @@ def s4(slide):
         add_text(slide, cx+274320, cy+411480, cw-320040, 274320, sub, 10, C_GOLD, italic=True)
         add_text(slide, cx+274320, cy+685800, cw-320040, ch-730000, desc, 11, C_GRAY_L)
 
+# ──────────────────────────────────────────────
 # 슬라이드 5 — 기다림
-def s5(slide):
-    set_bg_color(slide, RGBColor(0x0F, 0x0F, 0x0F))
-    add_rect(slide, 0, 0, 9144000, 457200, fill=RGBColor(0x1A,0x1A,0x1A))
+# ──────────────────────────────────────────────
+def s5(slide, imgs):
+    set_bg_image(slide, imgs["img_4"])
+    add_rect(slide, 0, 0, 9144000, 457200, fill=RGBColor(0x1A,0x1A,0x1A), fa=90000)
     add_text(slide, 457200, 0, 8229600, 457200, "T H E M E",
              11, C_GRAY_M, spc=600, anchor="ctr")
-    add_img_placeholder(slide, 4600000, 500000, 4400000, 4500000, "[ 전시 이미지 ]")
     add_rect(slide, 0, 457200, 4500000, 4686300, fill=RGBColor(0x0A,0x0A,0x0A), fa=70000)
     add_text(slide, 457200, 685800, 4200000, 914400,
              "기다림이란 무엇인가", 40, C_WHITE, bold=True)
@@ -259,13 +291,15 @@ def s5(slide):
         add_text(slide, tx+731520, sy+182880, 3200000, 320040, label, 18, C_WHITE, bold=True)
         add_text(slide, tx+731520, sy+502920, 3200000, 365760, desc, 12, C_GRAY_L)
 
+# ──────────────────────────────────────────────
 # 슬라이드 6 — 엔딩
-def s6(slide):
+# ──────────────────────────────────────────────
+def s6(slide, imgs):
     set_bg_color(slide, RGBColor(0x1A,0x1A,0x1A))
     add_rect(slide, 0, 0, 9144000, 54864, fill=C_GOLD)
     add_rect(slide, 0, 5088636, 9144000, 54864, fill=C_GOLD)
-    add_img_placeholder(slide, 5200000, 600000, 3700000, 3500000, "[ 작품 이미지 ]")
-    add_img_placeholder(slide, 5200000, 4100000, 1800000, 900000, "[ 이미지 ]")
+    add_img(slide, imgs["img_6"], 5200000, 600000, 3700000, 3500000)
+    add_img(slide, imgs["img_3"], 5200000, 4100000, 1800000, 900000)
     add_text(slide, 457200, 457200, 4600000, 457200,
              "E N   A T T E N D A N T", 11, C_GRAY_M, spc=600)
     add_text(slide, 457200, 914400, 4600000, 1097280, "기다리며", 80, C_WHITE, bold=True)
@@ -283,10 +317,15 @@ def s6(slide):
         add_text(slide, 1554480, 3350000+i*355000, 3200000, 320040,
                  f"{icon}{txt}", 13, C_GRAY_L)
 
+# ──────────────────────────────────────────────
+# 메인
+# ──────────────────────────────────────────────
 def build(output="leebae_docent_final.pptx"):
     print("=" * 55)
     print("  이배 《En attendant: 기다리며》 도슨트 PPT 빌드")
     print("=" * 55)
+    print("\n이미지 확인 중...")
+    imgs = load_images()
 
     prs = Presentation()
     prs.slide_width  = SLIDE_W
@@ -302,7 +341,7 @@ def build(output="leebae_docent_final.pptx"):
         ("슬라이드 6 — 엔딩",      s6),
     ]:
         print(f"  빌드: {label} ...", end="", flush=True)
-        fn(prs.slides.add_slide(blank))
+        fn(prs.slides.add_slide(blank), imgs)
         print(" OK")
 
     print(f"\n저장: {output}")
